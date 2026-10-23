@@ -43,6 +43,7 @@ class _HomePageState extends State<HomePage> {
   String apiKey = '';
   bool loading = false;
   List<String> learned = [];
+  String modelName = '';
 
   @override
   void initState() {
@@ -71,7 +72,10 @@ class _HomePageState extends State<HomePage> {
   Future<void> _saveKey(String key) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('apiKey', key);
-    setState(() => apiKey = key);
+    setState(() {
+      apiKey = key;
+      modelName = '';
+    });
   }
 
   void _scrollDown() {
@@ -86,26 +90,51 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<String> _pickModel() async {
+    if (modelName.isNotEmpty) return modelName;
+    try {
+      final res = await http.get(Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey'));
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        final models = (data['models'] as List?) ?? [];
+        for (final m in models) {
+          final name = (m['name'] ?? '').toString();
+          final methods =
+              (m['supportedGenerationMethods'] as List?)?.cast<String>() ?? [];
+          if (name.contains('flash') &&
+              (methods.isEmpty ||
+                  methods.contains('generateContent'))) {
+            modelName = name.replaceFirst('models/', '');
+            return modelName;
+          }
+        }
+      }
+    } catch (_) {}
+    modelName = 'gemini-2.0-flash';
+    return modelName;
+  }
+
   Future<void> _askGemini(String userText) async {
     if (apiKey.isEmpty) {
       _addBot('⚠️ خاصك تحط مفتاح Gemini! كليك على ⚙️ فوق.');
       return;
     }
     setState(() => loading = true);
-    final learnedText = learned.isEmpty ? 'لا شيء' : learned.join('\n');
-    final system = 'أنت "مستعكِل"، مساعد شخصي ذكي داخل تطبيق أندرويد. '
-        'المستخدم يتحدث معك بالدارجة المغربية أو العربية أو الفرنسية.\n\n'
-        'المعلومات التي تعلمتها من المستخدم سابقاً:\n$learnedText\n\n'
-        'قواعد:\n'
-        '1. أجب دائماً بلغة المستخدم وبأسلوب بسيط وودود.\n'
-        '2. إذا طلب البحث في الإنترنت، اكتب في نهاية ردك: [SEARCH: كلمات البحث]\n'
-        '3. إذا طلب حفظ معلومة، اكتب: [SAVE: المعلومة]\n'
-        '4. إذا علّمك معلومة جديدة، اكتب: [LEARN: المعلومة] وأكد أنك تعلمتها.\n'
-        '5. لا تكتب هذه الرموز إلا عند الحاجة فعلاً.';
-
     try {
+      final model = await _pickModel();
+      final learnedText = learned.isEmpty ? 'لا شيء' : learned.join('\n');
+      final system = 'أنت "مستعكِل"، مساعد شخصي ذكي داخل تطبيق أندرويد. '
+          'المستخدم يتحدث معك بالدارجة المغربية أو العربية أو الفرنسية.\n\n'
+          'المعلومات التي تعلمتها من المستخدم سابقاً:\n$learnedText\n\n'
+          'قواعد:\n'
+          '1. أجب دائماً بلغة المستخدم وبأسلوب بسيط وودود.\n'
+          '2. إذا طلب البحث في الإنترنت، اكتب في نهاية ردك: [SEARCH: كلمات البحث]\n'
+          '3. إذا طلب حفظ معلومة، اكتب: [SAVE: المعلومة]\n'
+          '4. إذا علّمك معلومة جديدة، اكتب: [LEARN: المعلومة] وأكد أنك تعلمتها.\n'
+          '5. لا تكتب هذه الرموز إلا عند الحاجة فعلاً.';
       final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey');
+          'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey');
       final res = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -125,6 +154,7 @@ class _HomePageState extends State<HomePage> {
         }),
       );
       if (res.statusCode != 200) {
+        modelName = '';
         _addBot('❌ خطأ من Gemini (code ${res.statusCode}). تأكد من المفتاح.');
         return;
       }
