@@ -1,7 +1,7 @@
 name: mostaakil_app
-description: "مساعد شخصي كينفد الأوامر - المرحلة الأولى"
+description: "مساعد شخصي ذكي"
 publish_to: 'none'
-version: 1.0.0+1
+version: 2.0.0+1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.2.0
   url_launcher: ^6.2.5
   shared_preferences: ^2.2.2
   cupertino_icons: ^1.0.6
